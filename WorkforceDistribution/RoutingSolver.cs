@@ -12,6 +12,8 @@ namespace ORToolsRoutingAndScheduling
         public RoutingSolver(DataModel data)
         {
             this.Data = data;
+            if (Data.GetTimeWindows().GetLength(0) != Data.GetTimeMatrix().GetLength(0))
+                throw new System.ComponentModel.DataAnnotations.ValidationException("Travel Time Matrix and Time Windows Matrix must have the same length.");
         }
 
         protected RoutingModel ComposeRoutingModel(RoutingIndexManager manager, out List<int> failedNodes)
@@ -28,7 +30,7 @@ namespace ORToolsRoutingAndScheduling
             // [START arc_cost]
 
             LongLongToLong timeCallback = new TimeCallback(Data, manager);
-
+            GC.KeepAlive(timeCallback);
             int transitCallbackIndex = routing.RegisterTransitCallback(timeCallback);
 
             routing.SetArcCostEvaluatorOfAllVehicles(transitCallbackIndex);
@@ -124,7 +126,7 @@ namespace ORToolsRoutingAndScheduling
                     var previousIndex = index;
                     solutionObjects[i] = new WorkerAssignment();
 
-                    long oneRouteTime = routing.GetArcCostForVehicle(index, solution.Value(routing.NextVar(index)), 0);
+                    long oneRouteTime = routing.GetArcCostForVehicle(index, solution.Value(routing.NextVar(index)), i);
 
                     if (manager.IndexToNode(index) == 0)
                     {

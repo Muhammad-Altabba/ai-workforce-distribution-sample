@@ -1,3 +1,5 @@
 
 .vs
 WorkforceDistribution.v12.suo
+WorkforceDistribution/bin/
+WorkforceDistribution/obj/
