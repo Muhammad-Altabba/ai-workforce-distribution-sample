@@ -7,16 +7,29 @@ namespace ORToolsRoutingAndScheduling
 {
     public class RoutingSolver
     {
-        private readonly DataModel Data;
+        public readonly DataModel Data;
+        private readonly LongLongToLong timeCallback;
+        private readonly RoutingIndexManager manager;
 
         public RoutingSolver(DataModel data)
         {
-            this.Data = data;
-            if (Data.GetTimeWindows().GetLength(0) != Data.GetTimeMatrix().GetLength(0))
+            if (this.Data.GetTimeWindows().GetLength(0) != this.Data.GetTimeMatrix().GetLength(0))
                 throw new System.ComponentModel.DataAnnotations.ValidationException("Travel Time Matrix and Time Windows Matrix must have the same length.");
+
+            this.Data = data;
+
+            // Create Routing Index Manager
+            // [START index_manager]
+            this.manager = new RoutingIndexManager(
+                this.Data.GetTimeMatrix().GetLength(0), // Total Number of Sites
+                this.Data.GetVehicleNumber(),
+                this.Data.GetDepot());
+            // [END index_manager]
+
+            this.timeCallback = new TimeCallback(this.Data, manager);
         }
 
-        protected RoutingModel ComposeRoutingModel(RoutingIndexManager manager, out List<int> failedNodes)
+        protected RoutingModel ComposeRoutingModel(out List<int> failedNodes)
         {
             failedNodes = new List<int>();
             int numberOfSites = Data.GetTimeMatrix().GetLength(0);
@@ -29,8 +42,7 @@ namespace ORToolsRoutingAndScheduling
             // Define cost of each arc.
             // [START arc_cost]
 
-            LongLongToLong timeCallback = new TimeCallback(Data, manager);
-            GC.KeepAlive(timeCallback);
+
             int transitCallbackIndex = routing.RegisterTransitCallback(timeCallback);
 
             routing.SetArcCostEvaluatorOfAllVehicles(transitCallbackIndex);
@@ -98,7 +110,6 @@ namespace ORToolsRoutingAndScheduling
         /// </summary>
         protected WorkerAssignment[] getWorkersAssignment(
             in RoutingModel routing,
-            in RoutingIndexManager manager,
             in Assignment solution)
         {
             if (solution == null)
@@ -189,15 +200,6 @@ namespace ORToolsRoutingAndScheduling
 
         public WorkforceDistributionSolution Solve()
         {
-            // Create Routing Index Manager
-            // [START index_manager]
-            RoutingIndexManager manager = new RoutingIndexManager(
-                Data.GetTimeMatrix().GetLength(0), // Total Number of Sites
-                Data.GetVehicleNumber(),
-                Data.GetDepot());
-
-            // [END index_manager]
-
             // Setting first solution heuristic.
             // [START parameters]
             RoutingSearchParameters searchParameters =
@@ -206,16 +208,19 @@ namespace ORToolsRoutingAndScheduling
               FirstSolutionStrategy.Types.Value.PathCheapestArc;
             // [END parameters]
             List<int> failedToAddSites;
-            RoutingModel routing = this.ComposeRoutingModel(manager, out failedToAddSites);
+            RoutingModel routing = this.ComposeRoutingModel(out failedToAddSites);
 
             // Solve the problem.
             // [START solve]
             Assignment solution = routing.SolveWithParameters(searchParameters);
+
+            GC.KeepAlive(this.timeCallback);
+
             // [END solve]
 
             // RoutingSolver.PrintSolution(data, routing, manager, solution);
 
-            WorkerAssignment[] wa = getWorkersAssignment(routing, manager, solution);
+            WorkerAssignment[] wa = this.getWorkersAssignment(routing, solution);
 
             WorkforceDistributionSolution distributionSolution = new WorkforceDistributionSolution();
             distributionSolution.FailedToAddSites = failedToAddSites;
